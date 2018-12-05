@@ -2,7 +2,6 @@ aux_source_directory(. Proj_source)
 include_directories(../Include)
 
 set(app_libs
-		"libInfra.a"
 	)
 
 # 设置库和工程的目标文件输出路径。
@@ -21,10 +20,9 @@ endforeach()
 
 message(STATUS "link libs : ${all_libs}")
 
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lpthread -lc -ldl -lrt")
-#set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lc -ldl -lrt")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread -lc -ldl -lrt")
 message(STATUS "link FLAGS : ${CMAKE_EXE_LINKER_FLAGS}")
 
-add_executable(memCheck ${Proj_source})
+add_executable(memcheck_tool ${Proj_source})
 
-target_link_libraries(memCheck ${all_libs})
+target_link_libraries(memcheck_tool ${all_libs})

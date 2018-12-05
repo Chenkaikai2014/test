@@ -10,11 +10,10 @@
 //				2017年01月12日		chenkaikai		Create
 //
 
-#include "Infra/File.h"
-#include "Infra/Time.h"
-#include "Infra/System.h"
 #include <stdio.h>
 #include <string>
+#include <sys/wait.h>
+#include <errno.h>
 #include <stdio.h>
 #include <string>
 #include <string.h>
@@ -22,8 +21,17 @@
 #include <map>
 #include <vector>
 #include <algorithm>
+#include <unistd.h>
 
 using namespace std;
+
+void thread_sleep(void)
+{
+    struct timeval sleep_timet;
+    sleep_timet.tv_sec = 5;
+    sleep_timet.tv_usec = 0;
+    select(0, NULL, NULL, NULL, &sleep_timet);
+}
 
 typedef struct memInfo{
 	unsigned int size;
@@ -37,15 +45,12 @@ int cmp(const pair<unsigned int, unsigned int>& x, const pair<unsigned int,unsig
 
 void getThread_name(int argc, char *argv[], std::map<unsigned int, std::string> &thread_name)
 {
-	if (argc != 2)
-	{
-		return;
-	}
 	char *fileName = argv[1];
 	thread_name.clear();
 	FILE *p = fopen(fileName, "r");
 	if (!p)
 	{
+		printf("getThread_name open failed %s\n", fileName);
 		return;
 	}
 	char buf[1024] = {0};
@@ -53,7 +58,7 @@ void getThread_name(int argc, char *argv[], std::map<unsigned int, std::string> 
 	{
 		char name[64] = {0};
 		unsigned int thread_id = 0;
-		sscanf(buf, "%s %d", &name, &thread_id);
+		sscanf(buf, "%s %d", name, &thread_id);
 		if (strlen(name) == 0)
 		{
 			break;
@@ -64,14 +69,42 @@ void getThread_name(int argc, char *argv[], std::map<unsigned int, std::string> 
 	fclose(p);
 }
 
+void clear_print()
+{
+    int status = -1; 
+    pid_t pid = vfork();
+
+    if (pid < 0)
+    {   
+        status = -1; 
+    }   
+    else if (pid == 0)
+    {   
+        execl("/bin/sh", "sh", "-c", "clear", (char*)0);
+        _exit(127);
+    }   
+    else
+    {   
+        while (waitpid(pid, &status, 0) < 0)
+        {   
+            if (errno != EINTR)
+            {   
+                status = -1; 
+                break;
+            }   
+        }   
+    }   
+
+    return;
+}
+
 int main(int argc, char *argv[])
 {
 	std::map<unsigned int,std::string> thread_name;
 	getThread_name(argc, argv, thread_name);
 	
-//		CTime::sleep(1000);
-	FILE *p = fopen("./memCheck.txt", "r");
-	std::map<unsigned int, memInfo> malloc;
+	FILE *p = fopen(argv[2], "r");
+	std::map<void *, memInfo> malloc;
 	std::map<unsigned int,unsigned int> first_info;
 	bool bFirst = true;
 	int relCount = 0;
@@ -80,16 +113,16 @@ int main(int argc, char *argv[])
 		//M:0x2d25da0 S:32 P:13029
 		//F:0x2d17890
 		int readNum = 0;
-		//while(1)
+		while(1)
 		{
 			char buf[1024] = {0};
-			readNum = 0;
 			while(fgets(buf, 1023, p))
 			{
 				readNum++;
 				if (strstr(buf, "M:") != 0)
 				{
-					unsigned int  m = 0, size = 0,id = 0;
+					unsigned int  size = 0,id = 0;
+					void *m = NULL;
 					sscanf(buf, "M:%p S:%u P:%u\n", &m, &size, &id);
 					memInfo info;
 					info.size = size;
@@ -99,7 +132,7 @@ int main(int argc, char *argv[])
 				else if (strstr(buf, "F:") != 0)
 				{
 					//free:0xe86560
-					unsigned int m = 0;
+					void *m = 0;
 					sscanf(buf, "F:%p\n", &m);
 					malloc.erase(m);
 				}
@@ -111,11 +144,11 @@ int main(int argc, char *argv[])
 				relCount = 0;
 				getThread_name(argc, argv, thread_name);
 			}
-			CTime::sleep(1000 * 5);
-			Hunter::Infra::systemCall("clear");
+			thread_sleep();
+			clear_print();
 			std::map<unsigned int,unsigned int> info;
 			int totalsize = 0;
-			for (std::map<unsigned int, memInfo>::iterator it = malloc.begin(); it != malloc.end(); it++)
+			for (std::map<void *, memInfo>::iterator it = malloc.begin(); it != malloc.end(); it++)
 			{
 				memInfo &value = it->second;
 				totalsize += value.size;
@@ -142,8 +175,8 @@ int main(int argc, char *argv[])
 
 			sort(thread.begin(),thread.end(), cmp);
 
-			printf("Total\t%d M threadNum %d readNum %d relCount %d\n", (totalsize)/(1024*1024), thread.size(), readNum, relCount);
-			for(int i = 0;i < thread.size();i++)
+			printf("Total\t%d M threadNum %zu readNum %d relCount %d\n", (totalsize)/(1024*1024), thread.size(), readNum, relCount);
+			for(size_t i = 0;i < thread.size();i++)
 			{
 				std::map<unsigned int,unsigned int>::iterator iter_first = first_info.find(thread[i].first);
 				int diff = 0;
