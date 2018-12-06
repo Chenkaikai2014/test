@@ -29,30 +29,43 @@ extern "C" {
 #endif
 
 static char s_fileName[128] = {0};
+static int s_file_count = 0;
+static int s_file_max_size = 1024 * 1024 * 512;
+static char s_filePatch[128] = {0};
 static int s_check_size = 1024;
 static int s_check_start = 0;
-static int s_fifo_file = 0;
+static int s_fifo_file = -1;
 static int s_is_open  = 0;
 
-void thread_memcheck_config(const char *filename,int checkSize,int start)
+static void openNextFile()
 {
-	strncpy(s_fileName,filename,sizeof(s_fileName));
+	if (s_fifo_file != -1)
+	{
+		close(s_fifo_file);
+		s_fifo_file = -1;
+	}
+
+	s_is_open = 0;
+	snprintf(s_fileName,sizeof(s_fileName),"%sthread_memcheck_log_%d.txt",s_filePatch,s_file_count);
+	s_fifo_file = open(s_fileName, O_WRONLY|O_TRUNC|O_CREAT, 0777);
+	if (s_fifo_file != -1)
+	{
+		s_is_open = 1;
+		s_file_count++;
+	}
+	else
+	{
+		printf("thread_memcheck fifo(%s) open faild\n", s_fileName);
+	}
+	return;
+}
+
+void thread_memcheck_config(const char *filePatch,int checkSize,int start)
+{
+	strncpy(s_filePatch,filePatch,sizeof(s_filePatch));
 	s_check_size = checkSize;
 	s_check_start = start;
-
-	if (s_is_open == 0)
-	{
-		s_fifo_file = open(s_fileName, O_WRONLY|O_TRUNC);
-		if (s_fifo_file != -1)
-		{
-			s_is_open = 1;
-		}
-		else
-		{
-			printf("thread_memcheck fifo(%s) open faild\n", s_fileName);
-			return;
-		}
-	}
+	openNextFile();
 }
 
 void thread_memcheck_start(void)
@@ -70,6 +83,24 @@ extern void __real_free(void *ptr);
 extern void *__real_calloc(size_t nmemb, size_t size);
 extern void *__real_realloc(void *ptr, size_t size);
 
+static void writeFile(const char *buf,int len)
+{
+	int ret = 0;
+	static int file_size = 0;
+	pthread_mutex_lock(&wrap_mutex);
+	while (ret != len)
+	{
+		int size = write(s_fifo_file, (char *)buf + ret, len - ret);
+		ret += size;
+	}
+	file_size += len;
+	if (file_size >= s_file_max_size)
+	{
+		openNextFile();
+		file_size = 0;
+	}
+	pthread_mutex_unlock(&wrap_mutex);
+}
 
 static void malloc_record(void *p, size_t c)
 {
@@ -78,21 +109,9 @@ static void malloc_record(void *p, size_t c)
 		return;
 	}
 
-
 	char buf[128] = {0};
-	pthread_mutex_lock(&wrap_mutex);
-	if (s_fifo_file != -1)
-	{
-		sprintf(buf, "M:%p S:%zu P:%u\n", p, c,(int)syscall(SYS_gettid));
-		int ret = 0;
-		int len = strlen(buf);
-		while (ret != len)
-		{
-			int size = write(s_fifo_file, (char *)buf + ret, len - ret);
-			ret += size;
-		}
-	}
-	pthread_mutex_unlock(&wrap_mutex);
+	sprintf(buf, "M:%p S:%zu P:%u\n", p, c,(int)syscall(SYS_gettid));
+	writeFile(buf,strlen(buf));
 }
 
 static void free_record(void *p)
@@ -104,21 +123,9 @@ static void free_record(void *p)
 
 	if (p)
 	{
-		pthread_mutex_lock(&wrap_mutex);
-		if (s_fifo_file != -1)
-		{
-			char buf[128] = {0};
-			sprintf(buf, "F:%p\n", p);
-			int ret = 0;
-			int len = strlen(buf);
-			while (ret != len)
-			{
-				int size = write(s_fifo_file, (char *)buf + ret, len - ret);
-				ret += size;
-			}
-		}
-
-		pthread_mutex_unlock(&wrap_mutex);
+		char buf[128] = {0};
+		sprintf(buf, "F:%p\n", p);
+		writeFile(buf,strlen(buf));
 	}
 }
 

@@ -98,24 +98,42 @@ void clear_print()
     return;
 }
 
+static int s_file_count = 0;
+static char s_filePatch[128] = {0};
+char fileName[128] = {0};
+
+void openNextFile(FILE **file)
+{
+	snprintf(fileName,sizeof(fileName),"%sthread_memcheck_log_%d.txt",s_filePatch,s_file_count);
+	FILE *p = fopen(fileName, "r");
+	*file = p;
+	if (p)
+	{
+		s_file_count++;
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	std::map<unsigned int,std::string> thread_name;
-	getThread_name(argc, argv, thread_name);
+	getThread_name(argc, argv, thread_name);	
+
+	strncpy(s_filePatch,argv[2],sizeof(s_filePatch));
 	
-	FILE *p = fopen(argv[2], "r");
+	FILE *p = NULL;
+	openNextFile(&p);
 	std::map<void *, memInfo> malloc;
 	std::map<unsigned int,unsigned int> first_info;
 	bool bFirst = true;
 	int relCount = 0;
+	int eof_count = 0;
 	if (p != NULL)
 	{
-		//M:0x2d25da0 S:32 P:13029
-		//F:0x2d17890
 		int readNum = 0;
 		while(1)
 		{
 			char buf[1024] = {0};
+			int read_file_size = 0;
 			while(fgets(buf, 1023, p))
 			{
 				readNum++;
@@ -131,12 +149,27 @@ int main(int argc, char *argv[])
 				}
 				else if (strstr(buf, "F:") != 0)
 				{
-					//free:0xe86560
 					void *m = 0;
 					sscanf(buf, "F:%p\n", &m);
 					malloc.erase(m);
 				}
+				read_file_size = strlen(buf);
+				eof_count = 0;
 				memset(buf, 0,  1024);
+			}
+
+			if (feof(p))
+			{
+				eof_count++;
+			}
+			if (eof_count >= 3)
+			{
+				if (p)
+				{
+					fclose(p);
+				}
+				p = NULL;
+				openNextFile(&p);
 			}
 
 			if (relCount++ == 3)
@@ -175,7 +208,7 @@ int main(int argc, char *argv[])
 
 			sort(thread.begin(),thread.end(), cmp);
 
-			printf("Total\t%d M threadNum %zu readNum %d relCount %d\n", (totalsize)/(1024*1024), thread.size(), readNum, relCount);
+			printf("Total\t%d M threadNum %zu readNum %d relCount %d file:%s\n", (totalsize)/(1024*1024), thread.size(), readNum, relCount,fileName);
 			for(size_t i = 0;i < thread.size();i++)
 			{
 				std::map<unsigned int,unsigned int>::iterator iter_first = first_info.find(thread[i].first);

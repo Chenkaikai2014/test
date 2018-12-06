@@ -16,7 +16,7 @@
 extern "C" {
 #endif
 
-void thread_memcheck_config(const char *filename,int checkSize,int start);
+void thread_memcheck_config(const char *filePatch,int checkSize,int start);
 
 void thread_memcheck_start(void);
 

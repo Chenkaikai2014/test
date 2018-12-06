@@ -23,7 +23,7 @@
 void thread_sleep(void)
 {
 	struct timeval sleep_timet;
-	sleep_timet.tv_sec = 5;
+	sleep_timet.tv_sec = 1;
 	sleep_timet.tv_usec = 0;
 	select(0, NULL, NULL, NULL, &sleep_timet);
 }
@@ -118,7 +118,7 @@ void* pthread_func5(void *arg)
 
 int main(int argc, char *argv[])
 {
-	const char *fileName = "./thread_memcheck_log.txt";
+	const char *fileName = "./";
 	thread_memcheck_config(fileName,0,1);
 	pthread_t tid1,tid2,tid3,tid4,tid5;
 	pthread_create(&tid1,NULL,pthread_func1,NULL);
@@ -128,6 +128,7 @@ int main(int argc, char *argv[])
 	pthread_create(&tid5,NULL,pthread_func5,NULL);
 	while(1)
 	{
+		fflush(stdout);
 		thread_sleep();
 	}
 
