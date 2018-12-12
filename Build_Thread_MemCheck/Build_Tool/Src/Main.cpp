@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
 		{
 			char buf[1024] = {0};
 			int read_file_size = 0;
-			while(fgets(buf, 1023, p))
+			while(p && fgets(buf, 1023, p))
 			{
 				readNum++;
 				if (strstr(buf, "M:") != 0)
@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
 				memset(buf, 0,  1024);
 			}
 
-			if (feof(p))
+			if (p && feof(p))
 			{
 				eof_count++;
 			}
