@@ -2,7 +2,7 @@
 tmp="../"
 flag='"'
 patch=$tmp$1
-if [ -f $patch ];then
+if [ -d $patch ];then
 	cd $patch
 	sed -i '/lib.*\.a/d' ../../Src/CMakeLists.txt
 	file_name='.*\.a'
