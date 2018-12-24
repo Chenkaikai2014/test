@@ -37,10 +37,20 @@ typedef struct memInfo{
 	unsigned int size;
 	unsigned int id;
 }memInfo;
-
-int cmp(const pair<unsigned int, unsigned int>& x, const pair<unsigned int,unsigned int>&y)
+typedef struct thread_mem_info
 {
-	return x.second > y.second;
+	unsigned int size;
+	std::map<unsigned int,int> mem;
+}thread_mem_info;
+
+int cmp(const pair<unsigned int, thread_mem_info>& x, const pair<unsigned int,thread_mem_info>&y)
+{
+	return x.second.size > y.second.size;
+}
+
+int cmp_mem_size(const pair<unsigned int, int>& x, const pair<unsigned int,int>&y)
+{
+	return x.first > y.first;
 }
 
 void getThread_name(int argc, char *argv[], std::map<unsigned int, std::string> &thread_name)
@@ -123,7 +133,7 @@ int main(int argc, char *argv[])
 	FILE *p = NULL;
 	openNextFile(&p);
 	std::map<void *, memInfo> malloc;
-	std::map<unsigned int,unsigned int> first_info;
+	std::map<unsigned int,thread_mem_info> first_info;
 	bool bFirst = true;
 	int relCount = 0;
 	int eof_count = 0;
@@ -179,7 +189,7 @@ int main(int argc, char *argv[])
 			}
 			thread_sleep();
 			clear_print();
-			std::map<unsigned int,unsigned int> info;
+			std::map<unsigned int,thread_mem_info> info;
 			int totalsize = 0;
 			for (std::map<void *, memInfo>::iterator it = malloc.begin(); it != malloc.end(); it++)
 			{
@@ -187,12 +197,25 @@ int main(int argc, char *argv[])
 				totalsize += value.size;
 				if (info.find(value.id) != info.end())
 				{
-					info[value.id] = info[value.id] + value.size;
+					info[value.id].size = info[value.id].size + value.size;
 				}
 				else
 				{
-					info[value.id] = value.size;
+					info[value.id].size = value.size;
 				}
+
+				if (info[value.id].mem.find(value.size) != info[value.id].mem.end())
+				{
+					info[value.id].mem[value.size]++;
+				}
+				else
+				{
+					info[value.id].mem[value.size] = 1;
+				}
+//				for(std::map<unsigned int,int>::iterator it = info[value.id].mem.begin(); it != info[value.id].mem.end();++it)
+//				{
+//					printf("%u:%d\n",it->first,it->second);
+//				}
 			}
 			if (bFirst)
 			{
@@ -200,8 +223,8 @@ int main(int argc, char *argv[])
 				bFirst = false;
 			}
 
-			vector< pair<unsigned int,unsigned int> > thread;
-			for (std::map<unsigned int,unsigned int>::iterator it = info.begin(); it != info.end(); it++)
+			vector< pair<unsigned int,thread_mem_info> > thread;
+			for (std::map<unsigned int,thread_mem_info>::iterator it = info.begin(); it != info.end(); it++)
 			{
 				thread.push_back(make_pair(it->first,it->second));
 			}
@@ -211,7 +234,7 @@ int main(int argc, char *argv[])
 			printf("Total\t%d M threadNum %zu readNum %d relCount %d file:%s\n", (totalsize)/(1024*1024), thread.size(), readNum, relCount,fileName);
 			for(size_t i = 0;i < thread.size();i++)
 			{
-				std::map<unsigned int,unsigned int>::iterator iter_first = first_info.find(thread[i].first);
+				std::map<unsigned int,thread_mem_info>::iterator iter_first = first_info.find(thread[i].first);
 				int diff = 0;
 				if (iter_first == first_info.end())
 				{
@@ -219,17 +242,41 @@ int main(int argc, char *argv[])
 				}
 				else
 				{
-					diff = (int)(thread[i].second) - (int)(iter_first->second);
+					diff = (int)(thread[i].second.size) - (int)(iter_first->second.size);
 				}
 
-				if ((thread[i].second)/1024 > 0)
+				if ((thread[i].second.size)/1024 > 0)
 				{
 					std::string name;
 					if (thread_name.find(thread[i].first) != thread_name.end())
 					{
 						name = thread_name[thread[i].first];
 					}
-					printf("%u\t\t%d K \t%d M\t DIFF %d K\t%d M %s\n", thread[i].first, (thread[i].second)/1024, (thread[i].second)/(1024*1024), diff/1024, diff/(1024*1024),  name.c_str());
+					printf("%u\t\t%d K \t%d M\t DIFF %d K\t%d M %s\n", thread[i].first, (thread[i].second.size)/1024, (thread[i].second.size)/(1024*1024), diff/1024, diff/(1024*1024),  name.c_str());
+				}
+			}
+
+			printf("\n");
+			for(size_t i = 0;i < thread.size();i++)
+			{
+				if ((thread[i].second.size)/1024 > 0)
+				{
+					std::string name;
+					if (thread_name.find(thread[i].first) != thread_name.end())
+					{
+						name = thread_name[thread[i].first];
+					}
+					vector< pair<unsigned int,int> > mem_size;
+					for(std::map<unsigned int,int>::iterator it = thread[i].second.mem.begin(); it != thread[i].second.mem.end(); ++it)
+					{
+						mem_size.push_back(make_pair(it->first,it->second));
+					}
+					sort(mem_size.begin(),mem_size.end(),cmp_mem_size);
+					printf("\033[1;33;40m%u\t%s\n\033[0m",thread[i].first,name.c_str());
+					for(unsigned int index = 0; index < mem_size.size(); index++)
+					{
+						printf("\033[1;32;40m%8u\t%8u K\t%8u M\t%d\n\033[0m",mem_size[index].first,mem_size[index].first/(1024),mem_size[index].first/(1024*1024),mem_size[index].second);
+					}
 				}
 			}
 		}
