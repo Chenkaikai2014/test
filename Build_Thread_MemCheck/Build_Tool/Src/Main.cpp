@@ -143,11 +143,10 @@ enum CMD_TYPE
 };
 static int cmd_type = TEST_THREADS;
 static const  int cmdName_len = 32;
-static bool s_test_thread_mem = false;
 static unsigned int s_thread_id = -1;
 void* pthread_func1(void *arg)
 {
-	char cmdName[32] = {0};
+	char cmdName[cmdName_len] = {0};
 	int len = 0;
 	while(1)
 	{
@@ -304,7 +303,6 @@ int main(int argc, char *argv[])
 			if (cmd_type == TEST_THREADS)
 			{
 				printf("Total\t%d M threadNum %zu readNum %d relCount %d file:%s\n", (totalsize)/(1024*1024), thread.size(), readNum, relCount,fileName);
-				fflush(stdout);
 			}
 			for(size_t i = 0;i < thread.size();i++)
 			{
@@ -329,7 +327,6 @@ int main(int argc, char *argv[])
 					if (cmd_type == TEST_THREADS)
 					{
 						printf("%u\t\t%d K \t%d M\t DIFF %d K\t%d M %s\n", thread[i].first, (thread[i].second.size)/1024, (thread[i].second.size)/(1024*1024), diff/1024, diff/(1024*1024),  name.c_str());
-						fflush(stdout);
 					}
 				}
 			}
@@ -339,7 +336,6 @@ int main(int argc, char *argv[])
 			{
 				for(size_t i = 0;i < thread.size();i++)
 				{
-					//if ((thread[i].second.size)/1024 > 0)
 					if (thread[i].first == threadId)
 					{
 						std::string name;
@@ -358,7 +354,6 @@ int main(int argc, char *argv[])
 						{
 							printf("\033[1;32;40m%8u\t%8u K\t%8u M\t%d\n\033[0m",mem_size[index].first,mem_size[index].first/(1024),mem_size[index].first/(1024*1024),mem_size[index].second);
 						}
-						fflush(stdout);
 						break;
 					}
 				}
