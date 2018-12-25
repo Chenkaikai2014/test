@@ -122,9 +122,83 @@ void openNextFile(FILE **file)
 		s_file_count++;
 	}
 }
+    enum KB_DEFINE
+    {   
+		KB_NEWLINE = 10,
+        KB_0 = 48, 
+        KB_1 = 49, 
+        KB_2 = 50, 
+        KB_3 = 51, 
+        KB_4 = 52, 
+        KB_5 = 53, 
+        KB_6 = 54, 
+        KB_7 = 55, 
+        KB_8 = 56, 
+        KB_9 = 57
+    };  
+enum CMD_TYPE
+{
+	TEST_THREADS,
+	TEST_THREAD_MEM,
+};
+static int cmd_type = TEST_THREADS;
+static const  int cmdName_len = 32;
+static bool s_test_thread_mem = false;
+static unsigned int s_thread_id = -1;
+void* pthread_func1(void *arg)
+{
+	char cmdName[32] = {0};
+	int len = 0;
+	while(1)
+	{
+		char c = getchar();
+		switch(c)
+		{
+			case KB_NEWLINE:
+				if (cmd_type == TEST_THREADS)
+				{
+					if (len > 0)
+					{
+						sscanf(cmdName,"%u",&s_thread_id);
+						cmd_type = TEST_THREAD_MEM;
+					}
+				}
+				else if (cmd_type == TEST_THREAD_MEM)
+				{
+					s_thread_id = -1;
+					len = 0;
+					memset(cmdName,0,sizeof(cmdName));
+					cmd_type = TEST_THREADS;
+				}
+				break;
+			case KB_0:
+			case KB_1:
+			case KB_2:
+			case KB_3:
+			case KB_4:
+			case KB_5:
+			case KB_6:
+			case KB_7:
+			case KB_8:
+			case KB_9:
+				if (len < (cmdName_len - 1))
+				{
+					cmdName[len++] = c;
+				}
+				break;
+			default:
+				break;
+
+		}
+	}
+	return NULL;
+}
 
 int main(int argc, char *argv[])
 {
+	pthread_t tid1;
+	system("stty -echo");
+	pthread_create(&tid1,NULL,pthread_func1,NULL);
 	std::map<unsigned int,std::string> thread_name;
 	getThread_name(argc, argv, thread_name);	
 
@@ -212,10 +286,6 @@ int main(int argc, char *argv[])
 				{
 					info[value.id].mem[value.size] = 1;
 				}
-//				for(std::map<unsigned int,int>::iterator it = info[value.id].mem.begin(); it != info[value.id].mem.end();++it)
-//				{
-//					printf("%u:%d\n",it->first,it->second);
-//				}
 			}
 			if (bFirst)
 			{
@@ -231,7 +301,11 @@ int main(int argc, char *argv[])
 
 			sort(thread.begin(),thread.end(), cmp);
 
-			printf("Total\t%d M threadNum %zu readNum %d relCount %d file:%s\n", (totalsize)/(1024*1024), thread.size(), readNum, relCount,fileName);
+			if (cmd_type == TEST_THREADS)
+			{
+				printf("Total\t%d M threadNum %zu readNum %d relCount %d file:%s\n", (totalsize)/(1024*1024), thread.size(), readNum, relCount,fileName);
+				fflush(stdout);
+			}
 			for(size_t i = 0;i < thread.size();i++)
 			{
 				std::map<unsigned int,thread_mem_info>::iterator iter_first = first_info.find(thread[i].first);
@@ -252,30 +326,40 @@ int main(int argc, char *argv[])
 					{
 						name = thread_name[thread[i].first];
 					}
-					printf("%u\t\t%d K \t%d M\t DIFF %d K\t%d M %s\n", thread[i].first, (thread[i].second.size)/1024, (thread[i].second.size)/(1024*1024), diff/1024, diff/(1024*1024),  name.c_str());
+					if (cmd_type == TEST_THREADS)
+					{
+						printf("%u\t\t%d K \t%d M\t DIFF %d K\t%d M %s\n", thread[i].first, (thread[i].second.size)/1024, (thread[i].second.size)/(1024*1024), diff/1024, diff/(1024*1024),  name.c_str());
+						fflush(stdout);
+					}
 				}
 			}
 
-			printf("\n");
-			for(size_t i = 0;i < thread.size();i++)
+			unsigned int threadId = s_thread_id;
+			if (cmd_type == TEST_THREAD_MEM && threadId > 0)
 			{
-				if ((thread[i].second.size)/1024 > 0)
+				for(size_t i = 0;i < thread.size();i++)
 				{
-					std::string name;
-					if (thread_name.find(thread[i].first) != thread_name.end())
+					//if ((thread[i].second.size)/1024 > 0)
+					if (thread[i].first == threadId)
 					{
-						name = thread_name[thread[i].first];
-					}
-					vector< pair<unsigned int,int> > mem_size;
-					for(std::map<unsigned int,int>::iterator it = thread[i].second.mem.begin(); it != thread[i].second.mem.end(); ++it)
-					{
-						mem_size.push_back(make_pair(it->first,it->second));
-					}
-					sort(mem_size.begin(),mem_size.end(),cmp_mem_size);
-					printf("\033[1;33;40m%u\t%s\n\033[0m",thread[i].first,name.c_str());
-					for(unsigned int index = 0; index < mem_size.size(); index++)
-					{
-						printf("\033[1;32;40m%8u\t%8u K\t%8u M\t%d\n\033[0m",mem_size[index].first,mem_size[index].first/(1024),mem_size[index].first/(1024*1024),mem_size[index].second);
+						std::string name;
+						if (thread_name.find(thread[i].first) != thread_name.end())
+						{
+							name = thread_name[thread[i].first];
+						}
+						vector< pair<unsigned int,int> > mem_size;
+						for(std::map<unsigned int,int>::iterator it = thread[i].second.mem.begin(); it != thread[i].second.mem.end(); ++it)
+						{
+							mem_size.push_back(make_pair(it->first,it->second));
+						}
+						sort(mem_size.begin(),mem_size.end(),cmp_mem_size);
+						printf("\033[1;33;40m%u\t%s\n\033[0m",thread[i].first,name.c_str());
+						for(unsigned int index = 0; index < mem_size.size(); index++)
+						{
+							printf("\033[1;32;40m%8u\t%8u K\t%8u M\t%d\n\033[0m",mem_size[index].first,mem_size[index].first/(1024),mem_size[index].first/(1024*1024),mem_size[index].second);
+						}
+						fflush(stdout);
+						break;
 					}
 				}
 			}
@@ -283,5 +367,6 @@ int main(int argc, char *argv[])
 
 		fclose(p);
 	}
+	system("stty echo");
 	return 0;
 }	// ----------  end of function main  ----------
