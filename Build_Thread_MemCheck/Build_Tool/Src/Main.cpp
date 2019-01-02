@@ -346,13 +346,14 @@ int main(int argc, char *argv[])
 						vector< pair<unsigned int,int> > mem_size;
 						for(std::map<unsigned int,int>::iterator it = thread[i].second.mem.begin(); it != thread[i].second.mem.end(); ++it)
 						{
-							mem_size.push_back(make_pair(it->first,it->second));
+							mem_size.push_back(make_pair(it->first*it->second,it->second));
 						}
 						sort(mem_size.begin(),mem_size.end(),cmp_mem_size);
 						printf("\033[1;33;40m%u\t%s\n\033[0m",thread[i].first,name.c_str());
 						for(unsigned int index = 0; index < mem_size.size(); index++)
 						{
-							printf("\033[1;32;40m%8u\t%8u K\t%8u M\t%d\n\033[0m",mem_size[index].first,mem_size[index].first/(1024),mem_size[index].first/(1024*1024),mem_size[index].second);
+							unsigned int len = mem_size[index].first/mem_size[index].second;
+							printf("\033[1;32;40m%8u\t%8u K\t%8u M\t:%4d\t%8u\t%8u K\t%8u M\n\033[0m",mem_size[index].first,mem_size[index].first/(1024),mem_size[index].first/(1024*1024),mem_size[index].second,len,len/1024,len/(1024*1024));
 						}
 						break;
 					}
