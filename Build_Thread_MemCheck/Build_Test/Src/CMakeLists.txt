@@ -23,6 +23,6 @@ message(STATUS "link libs : ${all_libs}")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread -lc -ldl -lrt -Wl,-wrap,malloc -Wl,-wrap,free -Wl,-wrap,calloc -Wl,-wrap,realloc")
 message(STATUS "link FLAGS : ${CMAKE_EXE_LINKER_FLAGS}")
 
-add_executable(memcheck_test ${Proj_source})
+add_executable(Hunter ${Proj_source})
 
-target_link_libraries(memcheck_test ${all_libs})
+target_link_libraries(Hunter ${all_libs})

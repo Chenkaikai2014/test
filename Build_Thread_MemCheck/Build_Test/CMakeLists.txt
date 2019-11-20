@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 2.8)
 
 if (NOT PROJECT_NAME)
-	project(memcheck_test C CXX ASM)
-elseif (${PROJECT_NAME} STREQUAL memcheck_test)
-	project(memcheck_test C CXX ASM)
+	project(Hunter C CXX ASM)
+elseif (${PROJECT_NAME} STREQUAL Hunter)
+	project(Hunter C CXX ASM)
 endif(NOT PROJECT_NAME)
 message(STATUS "Project name : --- ${PROJECT_NAME}")
 

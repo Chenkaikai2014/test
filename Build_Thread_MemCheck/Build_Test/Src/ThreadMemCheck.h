@@ -15,11 +15,24 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+///内存检测配置文件，128字节
+typedef struct threadCheckConfig
+{
+	const char 		*filePatch;		///< 存放统计信息的文件路径
+	int				checkSize;		///< 最小内存检测，单位为字节
+	unsigned char	start; 			///< 1:马上开始所有线程的检测 0：依赖start接口开启检测
+	unsigned char	reverd[3];		///< 保留
+	const char 		*procName;		///< 进程名称
+	int				reverd1[28];	///< 保留
+}threadCheckConfig;
 
-void thread_memcheck_config(const char *filePatch,int checkSize,int start);
+void thread_memcheck_config(threadCheckConfig *cfig);
 
-void thread_memcheck_start(void);
+/// 开启线程内存检测
+///	\param[in] threadId 开启检测的线程id，-1：开启所有线程
+void thread_memcheck_start(int threadId);
 
+/// 关闭线程内存检测
 void thread_memcheck_stop(void);
 
 

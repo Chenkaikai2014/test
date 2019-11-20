@@ -22,12 +22,15 @@
 #include <unistd.h>
 #include <sys/syscall.h> 
 #include <string.h>
+#include <sys/prctl.h>
+#include "ThreadMemCheck.h"
 
 pthread_mutex_t wrap_mutex = PTHREAD_MUTEX_INITIALIZER;
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+static int g_test_thread = -1;
+static bool s_memset = false;
 static char s_fileName[128] = {0};
 static int s_file_count = 0;
 static int s_file_max_size = 1024 * 1024 * 512;
@@ -59,18 +62,23 @@ static void openNextFile()
 	}
 	return;
 }
-
-void thread_memcheck_config(const char *filePatch,int checkSize,int start)
+static char procName[32] = {0};
+void thread_memcheck_config(threadCheckConfig *cfig)
 {
-	strncpy(s_filePatch,filePatch,sizeof(s_filePatch));
-	s_check_size = checkSize;
-	s_check_start = start;
-	openNextFile();
+	if (cfig != NULL )
+	{
+		strncpy(s_filePatch,cfig->filePatch,sizeof(s_filePatch));
+		s_check_size = cfig->checkSize;
+		s_check_start = cfig->start;
+		strncpy(procName,cfig->procName,sizeof(procName));
+		openNextFile();
+	}
 }
 
-void thread_memcheck_start(void)
+void thread_memcheck_start(int threadId)
 {
 	s_check_start = 1;
+	g_test_thread = threadId;
 }
 void thread_memcheck_stop(void)
 {
@@ -82,8 +90,7 @@ extern void *__real_malloc(size_t);
 extern void __real_free(void *ptr);
 extern void *__real_calloc(size_t nmemb, size_t size);
 extern void *__real_realloc(void *ptr, size_t size);
-
-static void writeFile(const char *buf,int len)
+static void mem_writeFile(const char *buf,int len)
 {
 	int ret = 0;
 	static int file_size = 0;
@@ -104,14 +111,31 @@ static void writeFile(const char *buf,int len)
 
 static void malloc_record(void *p, size_t c)
 {
-	if (!s_check_start || !s_is_open)
+	if (!s_check_start || !s_is_open || c < s_check_size)
 	{
 		return;
 	}
 
 	char buf[128] = {0};
-	sprintf(buf, "M:%p S:%zu P:%u\n", p, c,(int)syscall(SYS_gettid));
-	writeFile(buf,strlen(buf));
+	char cThreadName[32] = {0};
+	prctl(PR_GET_NAME,(unsigned long)cThreadName);
+	if (strcmp(cThreadName,procName) == 0)
+	{
+		memset(cThreadName,0,sizeof(cThreadName));
+		snprintf(cThreadName,sizeof(cThreadName),"%d",(int)syscall(SYS_gettid));
+	}
+	sprintf(buf, "M:%p S:%zu P:%s\n", p, c,cThreadName);
+	if (g_test_thread != -1)
+	{
+		if (g_test_thread == (int)syscall(SYS_gettid))
+		{
+			mem_writeFile(buf,strlen(buf));
+		}
+	}
+	else
+	{
+		mem_writeFile(buf,strlen(buf));
+	}
 }
 
 static void free_record(void *p)
@@ -125,13 +149,15 @@ static void free_record(void *p)
 	{
 		char buf[128] = {0};
 		sprintf(buf, "F:%p\n", p);
-		writeFile(buf,strlen(buf));
+		mem_writeFile(buf,strlen(buf));
 	}
 }
 
 void *__wrap_calloc(size_t nmemb, size_t size)
 {
 	void *p = __real_calloc(nmemb, size);
+	if (s_memset)
+		memset(p,0,size);
 	malloc_record(p, nmemb*size);
 	return p;
 }
@@ -139,6 +165,8 @@ void *__wrap_calloc(size_t nmemb, size_t size)
 void *__wrap_realloc(void *ptr, size_t size)
 {
 	void *p = __real_realloc(ptr, size);
+	if (s_memset)
+		memset(p,0,size);
 	free_record(ptr);
 	malloc_record(p, size);
 	return p;
@@ -148,6 +176,8 @@ void *__wrap_malloc(size_t c)
 
 	void *p = NULL;
 	p = __real_malloc(c);
+	if (s_memset)
+		memset(p,0,c);
 	malloc_record(p, c);
 	return p;
 }

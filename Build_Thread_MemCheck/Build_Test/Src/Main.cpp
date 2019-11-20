@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <sys/prctl.h>
 
 void thread_sleep(void)
 {
@@ -30,6 +31,7 @@ void thread_sleep(void)
 
 void* pthread_func1(void *arg)
 {
+	prctl(PR_SET_NAME, "malloc");
 	void *buffer = malloc(1024 * 1024);
 	if (buffer)
 	{
@@ -44,6 +46,7 @@ void* pthread_func1(void *arg)
 
 void* pthread_func2(void *arg)
 {
+	prctl(PR_SET_NAME, "calloc");
 	void *buffer = calloc(1024,512);
 	if (buffer)
 	{
@@ -59,13 +62,28 @@ void* pthread_func2(void *arg)
 static const int s_count = 10;
 void* pthread_func3(void *arg)
 {
+	prctl(PR_SET_NAME, "newAndDelete");
 	printf("newAndDelete %d\n",(int)syscall(SYS_gettid));
 	char *buffer[s_count];
+	char *buffer2[s_count];
 	while(1)
 	{
 		for (int i = 0; i < s_count; ++i)
 		{
 			buffer[i] = new char [1024 * 4];
+			thread_sleep();
+		}
+
+		for (int i = 0; i < s_count; ++i)
+		{
+			buffer2[i] = new char [1024 * 512];
+			thread_sleep();
+		}
+
+		for (int i = 0; i < s_count; ++i)
+		{
+			delete [] buffer2[i];
+			buffer2[i] = NULL;
 			thread_sleep();
 		}
 
@@ -81,6 +99,7 @@ void* pthread_func3(void *arg)
 
 void* pthread_func4(void *arg)
 {
+//	prctl(PR_SET_NAME, "realloc");
 	void *buffer = malloc(1024 * 1024);
 	void *buffer_new = realloc(buffer,1024*1024*2);
 	if (buffer_new)
@@ -96,6 +115,7 @@ void* pthread_func4(void *arg)
 
 void* pthread_func5(void *arg)
 {
+	prctl(PR_SET_NAME, "mallocAndFree");
 	void *buffer[s_count];
 	memset(buffer,0,sizeof(buffer));
 	printf("mallocAndFree %d\n",(int)syscall(SYS_gettid));
@@ -118,8 +138,13 @@ void* pthread_func5(void *arg)
 
 int main(int argc, char *argv[])
 {
-	const char *fileName = "./";
-	thread_memcheck_config(fileName,0,1);
+	threadCheckConfig cfig;
+	memset(&cfig,0,sizeof(cfig));
+	cfig.checkSize = 0;
+	cfig.start = 1;
+	cfig.filePatch = "./";
+	cfig.procName = "Hunter";
+	thread_memcheck_config(&cfig);
 	pthread_t tid1,tid2,tid3,tid4,tid5;
 	pthread_create(&tid1,NULL,pthread_func1,NULL);
 	pthread_create(&tid2,NULL,pthread_func2,NULL);
